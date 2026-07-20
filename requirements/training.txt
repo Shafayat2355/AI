@@ -1,0 +1,7 @@
+-r base.txt
+torch
+scikit-learn
+pandas
+numpy
+mlflow
+optuna

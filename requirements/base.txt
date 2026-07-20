@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+pydantic>=2
+sqlalchemy>=2
+alembic
+confluent-kafka
+redis
+httpx
+python-jose[cryptography]
+apscheduler

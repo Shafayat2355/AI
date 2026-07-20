@@ -1,0 +1,3 @@
+# Generated/pinned from base.txt for reproducible production builds.
+# Populate with `pip freeze` output once dependency versions are locked.
+-r base.txt

@@ -1,0 +1,1 @@
+# Runs the backtesting suite against a fixed dataset to catch strategy/model regressions before merge.

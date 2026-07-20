@@ -1,0 +1,20 @@
+[project]
+name = "ai-trading-platform"
+version = "0.1.0"
+description = "Institutional-grade, event-driven AI trading platform."
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+
+[tool.ruff]
+line-length = 100
+src = ["app", "core", "shared", "config", "database", "cache", "market_data",
+       "websocket", "feature_engineering", "datasets", "ai", "strategies",
+       "risk", "portfolio", "execution", "paper_trading", "live_trading",
+       "backtesting", "scheduler", "monitoring", "alerts", "api", "dashboard"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
