@@ -1,1 +1,72 @@
 # Dev environment configuration overlay (local endpoints, relaxed limits).
+#
+# Values here are non-secret defaults for local development only. Real secrets are
+# never placed in this file -- see .env.example / config/modules/security.py. Every
+# key is optional: anything omitted falls back to the settings module's own default.
+# Precedence (highest wins): real OS env vars > .env file > this overlay > field
+# defaults. See config/loader.py.
+
+environment: dev
+debug: true
+
+application:
+  debug: true
+
+database:
+  echo: false
+  pool_size: 5
+  max_overflow: 10
+  run_migrations_on_startup: true
+
+postgres:
+  host: localhost
+  port: 5432
+  user: trading
+  database: trading_platform
+  sslmode: prefer
+
+redis:
+  host: localhost
+  port: 6379
+  db: 0
+  use_tls: false
+
+kafka:
+  bootstrap_servers: localhost:9092
+  security_protocol: PLAINTEXT
+  consumer_group_id: ai-trading-platform-dev
+
+binance:
+  use_testnet: true
+  rest_base_url: https://testnet.binance.vision
+  websocket_base_url: wss://testnet.binance.vision
+
+ai_models:
+  device: cpu
+  canary_traffic_percentage: 0
+
+feature_engineering:
+  online_store_backend: redis
+  parallel_workers: 2
+
+logging:
+  level: DEBUG
+  json_format: false
+
+monitoring:
+  metrics_enabled: true
+  tracing_enabled: false
+
+api:
+  host: 127.0.0.1
+  port: 8000
+  cors_allowed_origins: http://localhost:3000,http://127.0.0.1:3000
+  docs_enabled: true
+
+websocket:
+  host: 127.0.0.1
+  port: 8001
+
+security:
+  secure_cookies: false
+  mfa_required_for_trading: false

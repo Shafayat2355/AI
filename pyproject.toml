@@ -2,7 +2,7 @@
 name = "ai-trading-platform"
 version = "0.1.0"
 description = "Institutional-grade, event-driven AI trading platform."
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

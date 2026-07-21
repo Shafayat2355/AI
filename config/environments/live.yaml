@@ -1,1 +1,83 @@
 # Live-trading environment configuration overlay (strict limits, real endpoints).
+#
+# Real venue connectivity -- the platform's production environment
+# (docs/PHASE2_REPOSITORY_STRUCTURE.md, README "Environments"). The strictest safety
+# posture in the platform (config.validation enforces this): debug off, docs
+# disabled, TLS/SASL required, no testnet, no placeholder secrets. Secrets are never
+# placed in this file -- they are injected as real OS environment variables at deploy
+# time by the secrets manager (docs/PHASE1_ARCHITECTURE.md §13), from the
+# network-isolated live-trading namespace described there.
+
+environment: live
+debug: false
+
+application:
+  debug: false
+  graceful_shutdown_timeout_seconds: 60
+
+database:
+  echo: false
+  pool_size: 30
+  max_overflow: 30
+  run_migrations_on_startup: false
+  statement_timeout_ms: 15000
+  pool_recycle_seconds: 900
+
+postgres:
+  sslmode: verify-full
+
+redis:
+  use_tls: true
+  max_connections: 200
+  health_check_interval_seconds: 15
+
+kafka:
+  security_protocol: SASL_SSL
+  sasl_mechanism: SCRAM-SHA-512
+  consumer_group_id: ai-trading-platform-live
+  enable_auto_commit: false
+  producer_acks: all
+  request_timeout_ms: 20000
+
+binance:
+  use_testnet: false
+  rest_base_url: https://api.binance.com
+  websocket_base_url: wss://stream.binance.com:9443
+  max_requests_per_minute: 1100
+
+ai_models:
+  canary_traffic_percentage: 5
+  auto_rollback_on_drift: true
+  drift_score_threshold: 0.2
+
+feature_engineering:
+  parallel_workers: 8
+
+logging:
+  level: INFO
+  json_format: true
+  sample_rate: 1.0
+
+monitoring:
+  metrics_enabled: true
+  tracing_enabled: true
+  tracing_sample_rate: 0.05
+  alert_on_health_check_failures: 2
+
+api:
+  host: 0.0.0.0
+  port: 8000
+  docs_enabled: false
+  cors_allowed_origins: https://app.ai-trading-platform.example
+  workers: 4
+  rate_limit_requests_per_minute: 60
+
+websocket:
+  host: 0.0.0.0
+  max_connections: 20000
+
+security:
+  secure_cookies: true
+  mfa_required_for_trading: true
+  jwt_access_token_expiry_minutes: 10
+  min_password_length: 14

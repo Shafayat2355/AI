@@ -1,1 +1,68 @@
 # Paper-trading environment configuration overlay.
+#
+# Simulated trading against live market data (docs/PHASE2_REPOSITORY_STRUCTURE.md,
+# README "Environments"). Production-grade safety posture (config.validation enforces
+# this): debug off, TLS on, no placeholder secrets, real Binance testnet credentials
+# required. Secrets are never placed in this file -- they are injected as real OS
+# environment variables at deploy time by the secrets manager
+# (docs/PHASE1_ARCHITECTURE.md §13).
+
+environment: paper
+debug: false
+
+application:
+  debug: false
+
+database:
+  echo: false
+  pool_size: 20
+  max_overflow: 20
+  run_migrations_on_startup: false
+  statement_timeout_ms: 30000
+
+postgres:
+  sslmode: require
+
+redis:
+  use_tls: true
+  max_connections: 100
+
+kafka:
+  security_protocol: SASL_SSL
+  sasl_mechanism: SCRAM-SHA-512
+  consumer_group_id: ai-trading-platform-paper
+  enable_auto_commit: false
+
+binance:
+  use_testnet: true
+
+ai_models:
+  canary_traffic_percentage: 10
+
+feature_engineering:
+  parallel_workers: 4
+
+logging:
+  level: INFO
+  json_format: true
+
+monitoring:
+  metrics_enabled: true
+  tracing_enabled: true
+  tracing_sample_rate: 0.2
+
+api:
+  host: 0.0.0.0
+  port: 8000
+  docs_enabled: true
+  cors_allowed_origins: https://paper.internal.ai-trading-platform.example
+  workers: 2
+
+websocket:
+  host: 0.0.0.0
+  max_connections: 5000
+
+security:
+  secure_cookies: true
+  mfa_required_for_trading: true
+  jwt_access_token_expiry_minutes: 15

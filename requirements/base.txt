@@ -1,6 +1,9 @@
 fastapi
 uvicorn[standard]
 pydantic>=2
+pydantic-settings>=2.6
+PyYAML>=6.0
+python-dotenv>=1.0
 sqlalchemy>=2
 alembic
 confluent-kafka

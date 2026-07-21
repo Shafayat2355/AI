@@ -5,6 +5,8 @@ Institutional-grade, event-driven AI trading platform. See [`docs/PHASE1_ARCHITE
 ## Status
 Phase 1 (Architecture) — approved.
 Phase 2 (Repository Structure) — this scaffold. No business logic implemented yet.
+Phase 3 (Engineering Standards) — approved; see `docs/PHASE3_ENGINEERING_STANDARDS.md`.
+Phase 4 (Configuration Management) — complete; see `docs/PHASE4_CONFIGURATION_MANAGEMENT.md`.
 
 ## Architecture Summary
 Event-Driven, Domain-Oriented Microservices (EDMA): Hexagonal internals per service, Kafka as the event backbone, CQRS on the market-data/order-state boundary. Full rationale in `docs/PHASE1_ARCHITECTURE.md`.
