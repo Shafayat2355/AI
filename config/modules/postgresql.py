@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from urllib.parse import quote_plus
 
-from pydantic import Field, SecretStr
+from pydantic import AliasChoices, Field, SecretStr
 
 from config.base import ModuleBaseSettings, module_settings_config
 
@@ -27,7 +27,16 @@ class PostgreSQLSettings(ModuleBaseSettings):
         default=SecretStr("trading"),
         description="PostgreSQL login password. Always overridden outside dev.",
     )
-    database: str = Field(default="trading_platform", description="Target database name.")
+    database: str = Field(
+        default="trading_platform",
+        validation_alias=AliasChoices("POSTGRES_DATABASE", "POSTGRES_DB"),
+        description=(
+            "Target database name. Also accepts POSTGRES_DB (the official postgres "
+            "Docker image's own env var name, used by this repo's docker-compose.yml) "
+            "as an alias for POSTGRES_DATABASE, so the local Docker stack and the "
+            "application agree on the database name without extra configuration."
+        ),
+    )
     sslmode: str = Field(
         default="prefer",
         description="libpq sslmode: disable|allow|prefer|require|verify-ca|verify-full.",

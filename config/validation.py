@@ -38,7 +38,6 @@ def validate_settings(settings: Settings) -> None:
     _validate_binance_credentials_present_outside_dev(settings, errors)
     _validate_tls_enforced_outside_dev(settings, errors)
     _validate_tracing_endpoint_present_when_enabled(settings, errors)
-    _validate_json_logging_outside_dev(settings, errors)
 
     if errors:
         joined = "; ".join(errors)
@@ -119,17 +118,6 @@ def _validate_tracing_endpoint_present_when_enabled(
         errors.append(
             "monitoring.tracing_exporter_endpoint is required when "
             "monitoring.tracing_enabled is True"
-        )
-
-
-def _validate_json_logging_outside_dev(settings: Settings, errors: list[str]) -> None:
-    """JSON logging is required for ``paper``/``live`` so log shipping (Phase 5,
-    ``shared/logging/logger.py``) can parse every record uniformly; the colored
-    plain-text console formatter is a ``dev``-only convenience."""
-    if settings.environment.is_production_like and not settings.logging.json_format:
-        errors.append(
-            "logging.json_format must be True in paper/live "
-            f"(environment={settings.environment.value!r})"
         )
 
 

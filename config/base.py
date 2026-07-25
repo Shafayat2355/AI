@@ -44,6 +44,7 @@ def module_settings_config(env_prefix: str, **overrides: Any) -> SettingsConfigD
         "case_sensitive": False,
         "extra": "forbid",
         "validate_default": True,
+        "populate_by_name": True,
     }
     config.update(overrides)
     return cast(SettingsConfigDict, config)

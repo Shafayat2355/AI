@@ -8,7 +8,7 @@ so setting env vars in one test never leaks into another.
 from __future__ import annotations
 
 import pytest
-from pydantic import ValidationError
+from pydantic import SecretStr, ValidationError
 
 from config.modules.ai_models import AIModelSettings
 from config.modules.api import APISettings
@@ -78,21 +78,21 @@ class TestPostgreSQLSettings:
         assert settings.port == 5432
 
     def test_build_dsn_asyncpg_omits_sslmode(self) -> None:
-        settings = PostgreSQLSettings(host="db", user="u", password="p", database="d")  # type: ignore[call-arg]
+        settings = PostgreSQLSettings(host="db", user="u", password=SecretStr("p"), database="d")
         dsn = settings.build_dsn(driver="postgresql+asyncpg")
         assert dsn == "postgresql+asyncpg://u:p@db:5432/d"
         assert "sslmode" not in dsn
 
     def test_build_dsn_psycopg_includes_sslmode(self) -> None:
-        settings = PostgreSQLSettings(  # type: ignore[call-arg]
-            host="db", user="u", password="p", database="d", sslmode="require"
+        settings = PostgreSQLSettings(
+            host="db", user="u", password=SecretStr("p"), database="d", sslmode="require"
         )
         dsn = settings.build_dsn(driver="postgresql+psycopg2")
         assert dsn == "postgresql+psycopg2://u:p@db:5432/d?sslmode=require"
 
     def test_build_dsn_url_encodes_special_characters(self) -> None:
-        settings = PostgreSQLSettings(  # type: ignore[call-arg]
-            host="db", user="u@ser", password="p@ss/word", database="d"
+        settings = PostgreSQLSettings(
+            host="db", user="u@ser", password=SecretStr("p@ss/word"), database="d"
         )
         dsn = settings.build_dsn(driver="postgresql+asyncpg")
         assert "u%40ser" in dsn
@@ -102,6 +102,28 @@ class TestPostgreSQLSettings:
         monkeypatch.setenv("POSTGRES_PORT", "70000")
         with pytest.raises(ValidationError):
             PostgreSQLSettings()
+
+    def test_database_env_var_read(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("POSTGRES_DATABASE", "custom_db")
+        settings = PostgreSQLSettings()
+        assert settings.database == "custom_db"
+
+    def test_postgres_db_alias_matches_docker_compose_convention(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # docker-compose.yml's postgres service, and the official postgres Docker
+        # image, both use POSTGRES_DB rather than POSTGRES_DATABASE.
+        monkeypatch.setenv("POSTGRES_DB", "compose_db")
+        settings = PostgreSQLSettings()
+        assert settings.database == "compose_db"
+
+    def test_postgres_database_takes_precedence_over_postgres_db(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("POSTGRES_DATABASE", "explicit_db")
+        monkeypatch.setenv("POSTGRES_DB", "compose_db")
+        settings = PostgreSQLSettings()
+        assert settings.database == "explicit_db"
 
 
 class TestRedisSettings:
@@ -176,11 +198,11 @@ class TestBinanceSettings:
         assert settings.api_key.get_secret_value() == "legacy-key"
 
     def test_effective_rest_base_url_switches_for_testnet(self) -> None:
-        settings = BinanceSettings(use_testnet=True)  # type: ignore[call-arg]
+        settings = BinanceSettings(use_testnet=True)
         assert settings.effective_rest_base_url == "https://testnet.binance.vision"
 
     def test_effective_rest_base_url_respects_explicit_override(self) -> None:
-        settings = BinanceSettings(use_testnet=True, rest_base_url="https://custom.example")  # type: ignore[call-arg]
+        settings = BinanceSettings(use_testnet=True, rest_base_url="https://custom.example")
         assert settings.effective_rest_base_url == "https://custom.example"
 
 

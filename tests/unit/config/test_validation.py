@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import pytest
 
+from config.environment import Environment
 from config.exceptions import ConfigurationValidationError
 from config.settings import Settings
 
@@ -27,10 +28,10 @@ def _minimal_paper_secrets(monkeypatch: pytest.MonkeyPatch) -> None:
 class TestDevIsExemptFromProductionRules:
     def test_dev_allows_debug_true(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("APP_DEBUG", "true")
-        Settings(environment="dev")  # must not raise
+        Settings(environment=Environment.DEV)  # must not raise
 
     def test_dev_allows_placeholder_secret(self) -> None:
-        Settings(environment="dev")  # must not raise despite default jwt_secret
+        Settings(environment=Environment.DEV)  # must not raise despite default jwt_secret
 
 
 class TestDebugModeRule:
@@ -38,7 +39,7 @@ class TestDebugModeRule:
         _minimal_paper_secrets(monkeypatch)
         monkeypatch.setenv("APP_DEBUG", "true")
         with pytest.raises(ConfigurationValidationError, match="debug must be False"):
-            Settings(environment="paper")
+            Settings(environment=Environment.PAPER)
 
 
 class TestSecretPlaceholderRule:
@@ -49,7 +50,7 @@ class TestSecretPlaceholderRule:
         monkeypatch.setenv("SECURITY_SECURE_COOKIES", "true")
         monkeypatch.setenv("POSTGRES_SSLMODE", "require")
         with pytest.raises(ConfigurationValidationError, match="jwt_secret is still"):
-            Settings(environment="paper")
+            Settings(environment=Environment.PAPER)
 
     def test_paper_rejects_placeholder_postgres_password(
         self, monkeypatch: pytest.MonkeyPatch
@@ -60,7 +61,7 @@ class TestSecretPlaceholderRule:
         monkeypatch.setenv("SECURITY_SECURE_COOKIES", "true")
         monkeypatch.setenv("POSTGRES_SSLMODE", "require")
         with pytest.raises(ConfigurationValidationError, match="postgres.password"):
-            Settings(environment="paper")
+            Settings(environment=Environment.PAPER)
 
     def test_database_url_override_exempts_postgres_password_check(
         self, monkeypatch: pytest.MonkeyPatch
@@ -71,7 +72,7 @@ class TestSecretPlaceholderRule:
         monkeypatch.setenv("SECURITY_SECURE_COOKIES", "true")
         monkeypatch.setenv("POSTGRES_SSLMODE", "require")
         monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://u:realpass@h:5432/d")
-        Settings(environment="paper")  # must not raise
+        Settings(environment=Environment.PAPER)  # must not raise
 
 
 class TestCorsWildcardRule:
@@ -79,7 +80,7 @@ class TestCorsWildcardRule:
         _minimal_paper_secrets(monkeypatch)
         monkeypatch.setenv("API_CORS_ALLOWED_ORIGINS", "*")
         with pytest.raises(ConfigurationValidationError, match="cors_allowed_origins"):
-            Settings(environment="paper")
+            Settings(environment=Environment.PAPER)
 
 
 class TestDocsDisabledInLiveRule:
@@ -88,12 +89,12 @@ class TestDocsDisabledInLiveRule:
         monkeypatch.setenv("BINANCE_USE_TESTNET", "false")
         monkeypatch.setenv("API_DOCS_ENABLED", "true")
         with pytest.raises(ConfigurationValidationError, match="docs_enabled must be False"):
-            Settings(environment="live")
+            Settings(environment=Environment.LIVE)
 
     def test_paper_allows_docs_enabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
         _minimal_paper_secrets(monkeypatch)
         monkeypatch.setenv("API_DOCS_ENABLED", "true")
-        Settings(environment="paper")  # must not raise
+        Settings(environment=Environment.PAPER)  # must not raise
 
 
 class TestBinanceCredentialsRule:
@@ -105,13 +106,13 @@ class TestBinanceCredentialsRule:
         monkeypatch.setenv("SECURITY_SECURE_COOKIES", "true")
         monkeypatch.setenv("POSTGRES_SSLMODE", "require")
         with pytest.raises(ConfigurationValidationError, match="binance.api_key"):
-            Settings(environment="paper")
+            Settings(environment=Environment.PAPER)
 
     def test_live_rejects_testnet(self, monkeypatch: pytest.MonkeyPatch) -> None:
         _minimal_paper_secrets(monkeypatch)
         monkeypatch.setenv("API_DOCS_ENABLED", "false")
         with pytest.raises(ConfigurationValidationError, match="use_testnet must be False"):
-            Settings(environment="live")
+            Settings(environment=Environment.LIVE)
 
 
 class TestTlsEnforcementRule:
@@ -122,13 +123,13 @@ class TestTlsEnforcementRule:
         monkeypatch.setenv("BINANCE_API_SECRET", "real-secret")
         monkeypatch.setenv("POSTGRES_SSLMODE", "require")
         with pytest.raises(ConfigurationValidationError, match="secure_cookies must be True"):
-            Settings(environment="paper")
+            Settings(environment=Environment.PAPER)
 
     def test_paper_rejects_permissive_sslmode(self, monkeypatch: pytest.MonkeyPatch) -> None:
         _minimal_paper_secrets(monkeypatch)
         monkeypatch.setenv("POSTGRES_SSLMODE", "disable")
         with pytest.raises(ConfigurationValidationError, match="too permissive"):
-            Settings(environment="paper")
+            Settings(environment=Environment.PAPER)
 
 
 class TestTracingEndpointRule:
@@ -137,18 +138,18 @@ class TestTracingEndpointRule:
     ) -> None:
         monkeypatch.setenv("MONITORING_TRACING_ENABLED", "true")
         with pytest.raises(ConfigurationValidationError, match="tracing_exporter_endpoint"):
-            Settings(environment="dev")
+            Settings(environment=Environment.DEV)
 
     def test_tracing_enabled_with_endpoint_passes(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("MONITORING_TRACING_ENABLED", "true")
         monkeypatch.setenv("MONITORING_TRACING_EXPORTER_ENDPOINT", "http://otel:4317")
-        Settings(environment="dev")  # must not raise
+        Settings(environment=Environment.DEV)  # must not raise
 
 
 class TestAllErrorsReportedTogether:
     def test_multiple_violations_all_appear_in_one_message(self) -> None:
         with pytest.raises(ConfigurationValidationError) as excinfo:
-            Settings(environment="paper")
+            Settings(environment=Environment.PAPER)
         message = str(excinfo.value)
         assert "jwt_secret" in message
         assert "postgres.password" in message
