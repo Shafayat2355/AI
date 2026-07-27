@@ -5,6 +5,7 @@ pydantic-settings>=2.6
 PyYAML>=6.0
 python-dotenv>=1.0
 sqlalchemy>=2
+asyncpg
 alembic
 confluent-kafka
 redis
