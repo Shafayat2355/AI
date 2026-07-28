@@ -29,6 +29,7 @@ from sqlalchemy.ext.asyncio import (
 from config.modules.database import DatabaseSettings
 from config.settings import Settings
 from shared.logging.logger import get_logger
+from shared.logging.retry import log_retries_async
 
 _logger = get_logger("database.connection")
 
@@ -117,6 +118,43 @@ class DatabaseConnection:
                 exc_info=True,
             )
             return False
+
+    async def connect_with_retry(
+        self, *, max_attempts: int | None = None, backoff_seconds: float | None = None
+    ) -> None:
+        """Verify connectivity at startup, retrying with backoff before giving up.
+
+        Opt-in -- not called automatically by ``core.container.Container.startup``
+        (see ``docs/PHASE7_DATABASE_LAYER.md`` for why). Useful for a composition
+        root that wants to fail fast (or wait out a container-orchestration
+        startup race, e.g. the app container winning a race against Postgres
+        still initializing in ``docker-compose``) rather than silently serving
+        traffic against a database that was never reachable.
+
+        Defaults come from ``DatabaseSettings.connect_retry_attempts``/
+        ``connect_retry_backoff_seconds`` (configurable per environment) when not
+        passed explicitly.
+
+        Raises the underlying connection exception (via
+        ``shared.logging.retry.log_retries_async``, which logs every attempt)
+        once attempts are exhausted -- unlike :meth:`check_connection`, which
+        never raises, because a caller of *this* method has explicitly asked to
+        treat exhausted retries as fatal.
+        """
+        resolved_max_attempts = max_attempts or self._settings.database.connect_retry_attempts
+        resolved_backoff = backoff_seconds or self._settings.database.connect_retry_backoff_seconds
+
+        @log_retries_async(
+            max_attempts=resolved_max_attempts,
+            backoff_seconds=resolved_backoff,
+            exceptions=(Exception,),
+            operation="database.connect_with_retry",
+        )
+        async def _attempt() -> None:
+            async with self._engine.connect() as connection:
+                await connection.execute(text("SELECT 1"))
+
+        await _attempt()
 
     async def dispose(self) -> None:
         """Close every pooled connection. Called once, during graceful shutdown."""

@@ -76,6 +76,21 @@ class DatabaseSettings(ModuleBaseSettings):
         default=False,
         description="Whether the owning service should run Alembic migrations at boot.",
     )
+    connect_retry_attempts: int = Field(
+        default=5,
+        description=(
+            "Attempts DatabaseConnection.connect_with_retry makes before giving up. "
+            "Not used by check_connection (which never retries) or by any code path "
+            "run automatically at startup -- see database.connection.DatabaseConnection."
+        ),
+        ge=1,
+        le=20,
+    )
+    connect_retry_backoff_seconds: float = Field(
+        default=1.0,
+        description="Base backoff between connect_with_retry attempts (doubles each retry).",
+        gt=0,
+    )
 
 
 __all__ = ["DatabaseSettings"]

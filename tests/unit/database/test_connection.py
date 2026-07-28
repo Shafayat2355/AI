@@ -101,3 +101,33 @@ class TestDatabaseConnection:
             assert connection.engine is connection.engine
         finally:
             await connection.dispose()
+
+
+class TestConnectWithRetry:
+    async def test_succeeds_immediately_against_a_reachable_database(self) -> None:
+        connection = DatabaseConnection(_sqlite_settings())
+        await connection.connect_with_retry()  # should not raise
+        await connection.dispose()
+
+    async def test_uses_database_settings_as_defaults_when_not_passed_explicitly(self) -> None:
+        settings = Settings(
+            database=DatabaseSettings(
+                url=SecretStr("sqlite+aiosqlite:///:memory:"),
+                connect_retry_attempts=2,
+                connect_retry_backoff_seconds=0.001,
+            )
+        )
+        connection = DatabaseConnection(settings)
+        await connection.connect_with_retry()  # should not raise, and not hang
+        await connection.dispose()
+
+    async def test_retries_then_raises_against_an_unreachable_database(self) -> None:
+        settings = Settings(
+            database=DatabaseSettings(
+                url=SecretStr("postgresql+asyncpg://user:pass@127.0.0.1:1/nonexistent")
+            )
+        )
+        connection = DatabaseConnection(settings)
+        with pytest.raises(Exception):  # noqa: B017 - exact driver exception varies
+            await connection.connect_with_retry(max_attempts=2, backoff_seconds=0.001)
+        await connection.dispose()
