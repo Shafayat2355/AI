@@ -8,3 +8,4 @@ types-PyYAML
 pre-commit
 faker
 aiosqlite
+fakeredis

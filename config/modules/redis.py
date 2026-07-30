@@ -48,6 +48,44 @@ class RedisSettings(ModuleBaseSettings):
         default="trading:",
         description="Prefix applied to every cache key, see cache/cache_keys.py.",
     )
+    connect_retry_attempts: int = Field(
+        default=5,
+        description=(
+            "Attempts RedisConnection.connect_with_retry makes before giving up. "
+            "Not used by check_connection (which never retries) or by any code path "
+            "run automatically at startup -- see cache.redis_client.RedisConnection."
+        ),
+        ge=1,
+        le=20,
+    )
+    connect_retry_backoff_seconds: float = Field(
+        default=1.0,
+        description="Base backoff between connect_with_retry attempts (doubles each retry).",
+        gt=0,
+    )
+    prediction_cache_ttl_seconds: int = Field(
+        default=300,
+        description="Default TTL for cache.prediction_cache.PredictionCache entries.",
+        ge=1,
+    )
+    market_cache_ttl_seconds: int = Field(
+        default=5,
+        description=(
+            "Default TTL for cache.market_cache.MarketCache entries -- short, since "
+            "market data goes stale within seconds."
+        ),
+        ge=1,
+    )
+    session_cache_ttl_seconds: int = Field(
+        default=1800,
+        description="Default TTL for cache.session_cache.SessionCache entries (30 minutes).",
+        ge=1,
+    )
+    rate_limit_window_seconds: int = Field(
+        default=60,
+        description="Default fixed-window size for cache.rate_limit_cache.RateLimitCache.",
+        ge=1,
+    )
 
     def build_dsn(self) -> str:
         """Compose a ``redis(s)://`` DSN from the discrete connection parts.

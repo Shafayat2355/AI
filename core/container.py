@@ -4,8 +4,10 @@
 individual settings modules (``get_redis_settings``, etc.) -- those stay as-is,
 since a settings object is cheap to resolve on every call. ``Container`` exists one
 level up: it owns the handful of resources that are expensive to create, must be
-created exactly once per process, and must be explicitly disposed on shutdown (right
-now: the database engine/session factory in ``database.connection.DatabaseConnection``).
+created exactly once per process, and must be explicitly disposed on shutdown --
+as of Phase 8: the database engine/session factory in
+``database.connection.DatabaseConnection`` and the Redis connection pool in
+``cache.redis_client.RedisConnection``/``cache.cache_manager.CacheManager``.
 A composition root (``app/*_service/main.py``) builds one ``Container`` in its
 FastAPI ``lifespan`` handler, stores it on ``app.state.container``, and disposes it
 on shutdown via :meth:`Container.shutdown`.
@@ -24,6 +26,8 @@ from collections.abc import AsyncIterator
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from cache.cache_manager import CacheManager
+from cache.redis_client import RedisConnection
 from config.settings import Settings, get_settings
 from database.connection import DatabaseConnection
 from shared.enums import ServiceLifecycleState
@@ -39,6 +43,8 @@ class Container:
         self.settings: Settings = settings or get_settings()
         self.state: ServiceLifecycleState = ServiceLifecycleState.STARTING
         self._db_connection: DatabaseConnection | None = None
+        self._redis_connection: RedisConnection | None = None
+        self._cache_manager: CacheManager | None = None
 
     @property
     def db(self) -> DatabaseConnection:
@@ -46,6 +52,25 @@ class Container:
         if self._db_connection is None:
             self._db_connection = DatabaseConnection(self.settings)
         return self._db_connection
+
+    @property
+    def redis(self) -> RedisConnection:
+        """The process's single :class:`RedisConnection`, created on first access."""
+        if self._redis_connection is None:
+            self._redis_connection = RedisConnection(self.settings)
+        return self._redis_connection
+
+    @property
+    def cache(self) -> CacheManager:
+        """The process's single :class:`CacheManager`, created on first access.
+
+        Built from :attr:`redis` (so accessing this also lazily creates the
+        Redis connection pool if nothing has yet) -- mirrors :attr:`db`'s exact
+        lazy-construction shape from Phase 6/7.
+        """
+        if self._cache_manager is None:
+            self._cache_manager = CacheManager(self.redis, self.settings)
+        return self._cache_manager
 
     async def startup(self) -> None:
         """Mark the container ready. Idempotent; safe to call once from ``lifespan``.
@@ -63,6 +88,10 @@ class Container:
         if self._db_connection is not None:
             await self._db_connection.dispose()
             self._db_connection = None
+        if self._redis_connection is not None:
+            await self._redis_connection.dispose()
+            self._redis_connection = None
+            self._cache_manager = None
         self.state = ServiceLifecycleState.STOPPED
         _logger.info("container_stopped", extra={"channel": "application"})
 
@@ -104,4 +133,16 @@ async def get_db_session() -> AsyncIterator[AsyncSession]:
         yield session
 
 
-__all__ = ["Container", "get_container", "get_db_session", "reset_container"]
+def get_cache_manager() -> CacheManager:
+    """FastAPI dependency: return the process's shared :class:`CacheManager`.
+
+    Usage: ``cache: CacheManager = Depends(get_cache_manager)``. Unlike
+    :func:`get_db_session`, this returns the manager directly rather than a
+    request-scoped resource -- ``CacheManager`` (like ``Redis`` itself) is a
+    cheap, concurrency-safe handle onto the shared connection pool, not
+    something that needs a fresh instance per request.
+    """
+    return get_container().cache
+
+
+__all__ = ["Container", "get_cache_manager", "get_container", "get_db_session", "reset_container"]

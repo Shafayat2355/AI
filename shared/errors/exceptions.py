@@ -160,9 +160,21 @@ class ExecutionError(InfrastructureError):
     http_status = 502
 
 
+class CacheError(InfrastructureError):
+    """A Redis operation failed in a way callers should treat as a cache-layer
+    infrastructure problem rather than a domain error (``cache/redis_client.py``,
+    ``cache/cache_manager.py``). Never raised for an ordinary cache miss -- a
+    missing key is a normal, expected outcome (``None``/``False`` return), not an
+    error."""
+
+    error_code = "cache_error"
+    http_status = 503
+
+
 __all__ = [
     "AuthenticationError",
     "AuthorizationError",
+    "CacheError",
     "ConflictError",
     "DomainError",
     "ExecutionError",

@@ -7,6 +7,8 @@ pattern for isolating one router from the full application composition root.
 
 from __future__ import annotations
 
+from unittest.mock import AsyncMock, patch
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
@@ -38,7 +40,7 @@ class TestLiveness:
 
 
 class TestReadiness:
-    def test_healthy_container_and_reachable_db_reports_healthy(self) -> None:
+    def test_healthy_container_and_reachable_dependencies_reports_healthy(self) -> None:
         container = get_container(_sqlite_settings())
         client = TestClient(_build_app())
         try:
@@ -46,14 +48,17 @@ class TestReadiness:
             import asyncio
 
             asyncio.run(container.startup())
-            response = client.get("/health/ready")
+            with patch.object(
+                type(container.redis), "check_connection", AsyncMock(return_value=True)
+            ):
+                response = client.get("/health/ready")
         finally:
             reset_container()
         assert response.status_code == 200
         body = response.json()
         assert body["status"] == "healthy"
         names = {component["name"] for component in body["components"]}
-        assert names == {"container", "database"}
+        assert names == {"container", "database", "redis"}
 
     def test_container_not_ready_reports_unhealthy(self) -> None:
         container = Container(_sqlite_settings())  # left in STARTING state
@@ -82,12 +87,40 @@ class TestReadiness:
             import asyncio
 
             asyncio.run(container.startup())
-            response = client.get("/health/ready")
+            with patch.object(
+                type(container.redis), "check_connection", AsyncMock(return_value=True)
+            ):
+                response = client.get("/health/ready")
         finally:
             reset_container()
         assert response.status_code == 200
         body = response.json()
         assert body["status"] == "degraded"
+        by_name = {c["name"]: c["status"] for c in body["components"]}
+        assert by_name["database"] == "degraded"
+        assert by_name["redis"] == "healthy"
+
+    def test_unreachable_redis_reports_degraded_not_unhealthy(self) -> None:
+        container = get_container(_sqlite_settings())
+        app = _build_app()
+        app.dependency_overrides[get_container] = lambda: container
+        client = TestClient(app)
+        try:
+            import asyncio
+
+            asyncio.run(container.startup())
+            with patch.object(
+                type(container.redis), "check_connection", AsyncMock(return_value=False)
+            ):
+                response = client.get("/health/ready")
+        finally:
+            reset_container()
+        assert response.status_code == 200
+        body = response.json()
+        assert body["status"] == "degraded"
+        by_name = {c["name"]: c["status"] for c in body["components"]}
+        assert by_name["redis"] == "degraded"
+        assert by_name["database"] == "healthy"
 
 
 class TestVersion:

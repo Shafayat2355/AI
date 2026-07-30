@@ -7,12 +7,14 @@ regardless of the service's business-API prefix.
 
 Scope note (Phase 6): readiness here only asserts that this process's own
 bootstrap completed (settings loaded, logging configured, the container reached
-``READY``) -- it deliberately does not fail on database connectivity, since no
-service depends on the database yet as of this phase.
-:meth:`~database.connection.DatabaseConnection.check_connection` exists and is
-exercised by this router as an informational, non-blocking component so a later
-phase that does add a hard database dependency only needs to change how its
-status feeds into the aggregate, not add new plumbing.
+``READY``) -- it deliberately does not fail on database/Redis connectivity, since
+no service hard-depends on either yet as of this phase.
+:meth:`~database.connection.DatabaseConnection.check_connection` and
+:meth:`~cache.redis_client.RedisConnection.check_connection` exist and are
+exercised by this router as informational, non-blocking components (added in
+Phase 6 and Phase 8 respectively) so a later phase that does add a hard
+dependency only needs to change how its status feeds into the aggregate, not
+add new plumbing.
 """
 
 from __future__ import annotations
@@ -66,6 +68,15 @@ async def readiness(container: Annotated[Container, Depends(get_container)]) -> 
             name="database",
             status=HealthStatus.HEALTHY if db_reachable else HealthStatus.DEGRADED,
             detail=None if db_reachable else "database connectivity check failed",
+        )
+    )
+
+    redis_reachable = await container.redis.check_connection()
+    components.append(
+        ComponentHealth(
+            name="redis",
+            status=HealthStatus.HEALTHY if redis_reachable else HealthStatus.DEGRADED,
+            detail=None if redis_reachable else "redis connectivity check failed",
         )
     )
 
