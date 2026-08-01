@@ -48,8 +48,13 @@ class TestReadiness:
             import asyncio
 
             asyncio.run(container.startup())
-            with patch.object(
-                type(container.redis), "check_connection", AsyncMock(return_value=True)
+            with (
+                patch.object(
+                    type(container.redis), "check_connection", AsyncMock(return_value=True)
+                ),
+                patch.object(
+                    type(container.kafka_producer), "check_connection", AsyncMock(return_value=True)
+                ),
             ):
                 response = client.get("/health/ready")
         finally:
@@ -58,7 +63,7 @@ class TestReadiness:
         body = response.json()
         assert body["status"] == "healthy"
         names = {component["name"] for component in body["components"]}
-        assert names == {"container", "database", "redis"}
+        assert names == {"container", "database", "redis", "kafka"}
 
     def test_container_not_ready_reports_unhealthy(self) -> None:
         container = Container(_sqlite_settings())  # left in STARTING state
@@ -87,8 +92,13 @@ class TestReadiness:
             import asyncio
 
             asyncio.run(container.startup())
-            with patch.object(
-                type(container.redis), "check_connection", AsyncMock(return_value=True)
+            with (
+                patch.object(
+                    type(container.redis), "check_connection", AsyncMock(return_value=True)
+                ),
+                patch.object(
+                    type(container.kafka_producer), "check_connection", AsyncMock(return_value=True)
+                ),
             ):
                 response = client.get("/health/ready")
         finally:
@@ -109,8 +119,13 @@ class TestReadiness:
             import asyncio
 
             asyncio.run(container.startup())
-            with patch.object(
-                type(container.redis), "check_connection", AsyncMock(return_value=False)
+            with (
+                patch.object(
+                    type(container.redis), "check_connection", AsyncMock(return_value=False)
+                ),
+                patch.object(
+                    type(container.kafka_producer), "check_connection", AsyncMock(return_value=True)
+                ),
             ):
                 response = client.get("/health/ready")
         finally:
@@ -120,6 +135,36 @@ class TestReadiness:
         assert body["status"] == "degraded"
         by_name = {c["name"]: c["status"] for c in body["components"]}
         assert by_name["redis"] == "degraded"
+        assert by_name["database"] == "healthy"
+
+    def test_unreachable_kafka_reports_degraded_not_unhealthy(self) -> None:
+        container = get_container(_sqlite_settings())
+        app = _build_app()
+        app.dependency_overrides[get_container] = lambda: container
+        client = TestClient(app)
+        try:
+            import asyncio
+
+            asyncio.run(container.startup())
+            with (
+                patch.object(
+                    type(container.redis), "check_connection", AsyncMock(return_value=True)
+                ),
+                patch.object(
+                    type(container.kafka_producer),
+                    "check_connection",
+                    AsyncMock(return_value=False),
+                ),
+            ):
+                response = client.get("/health/ready")
+        finally:
+            reset_container()
+        assert response.status_code == 200
+        body = response.json()
+        assert body["status"] == "degraded"
+        by_name = {c["name"]: c["status"] for c in body["components"]}
+        assert by_name["kafka"] == "degraded"
+        assert by_name["redis"] == "healthy"
         assert by_name["database"] == "healthy"
 
 

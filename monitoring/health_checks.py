@@ -80,6 +80,15 @@ async def readiness(container: Annotated[Container, Depends(get_container)]) -> 
         )
     )
 
+    kafka_reachable = await container.kafka_producer.check_connection()
+    components.append(
+        ComponentHealth(
+            name="kafka",
+            status=HealthStatus.HEALTHY if kafka_reachable else HealthStatus.DEGRADED,
+            detail=None if kafka_reachable else "kafka connectivity check failed",
+        )
+    )
+
     overall = HealthStatus.aggregate([component.status for component in components])
     if overall is not HealthStatus.HEALTHY:
         _logger.warning(

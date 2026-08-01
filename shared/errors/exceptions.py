@@ -171,6 +171,18 @@ class CacheError(InfrastructureError):
     http_status = 503
 
 
+class MessagingError(InfrastructureError):
+    """A Kafka operation failed in a way callers should treat as a
+    messaging-layer infrastructure problem rather than a domain error
+    (``shared/messaging/kafka_producer.py``, ``kafka_consumer.py``,
+    ``event_codec.py``, ``topic_manager.py``). Raised for publish failures after
+    retries are exhausted, malformed/unrecognized event payloads, and topic
+    provisioning failures -- never for an ordinary, expected consumer rebalance."""
+
+    error_code = "messaging_error"
+    http_status = 503
+
+
 __all__ = [
     "AuthenticationError",
     "AuthorizationError",
@@ -179,6 +191,7 @@ __all__ = [
     "DomainError",
     "ExecutionError",
     "InfrastructureError",
+    "MessagingError",
     "NotFoundError",
     "PlatformError",
     "RateLimitExceededError",

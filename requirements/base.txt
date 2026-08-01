@@ -8,6 +8,7 @@ sqlalchemy>=2
 asyncpg
 alembic
 confluent-kafka
+aiokafka
 redis
 httpx
 python-jose[cryptography]

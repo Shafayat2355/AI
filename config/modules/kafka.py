@@ -51,15 +51,11 @@ class KafkaSettings(ModuleBaseSettings):
         default=False,
         description="Whether consumers auto-commit offsets. False: commit after processing.",
     )
-    producer_acks: str = Field(
-        default="all", description="Kafka producer acks setting: 0|1|all."
-    )
+    producer_acks: str = Field(default="all", description="Kafka producer acks setting: 0|1|all.")
     producer_max_in_flight_requests: int = Field(
         default=5, description="Max unacknowledged requests per connection.", ge=1
     )
-    producer_compression_type: str = Field(
-        default="snappy", description="none|gzip|snappy|lz4|zstd."
-    )
+    producer_compression_type: str = Field(default="gzip", description="none|gzip|snappy|lz4|zstd.")
     message_max_bytes: int = Field(
         default=1_048_576, description="Maximum message size in bytes.", ge=1024
     )
@@ -68,6 +64,57 @@ class KafkaSettings(ModuleBaseSettings):
     )
     request_timeout_ms: int = Field(
         default=30_000, description="Client request timeout in milliseconds.", ge=1000
+    )
+
+    # --- Phase 9: startup connectivity retry, mirroring RedisSettings/DatabaseSettings exactly ---
+    connect_retry_attempts: int = Field(
+        default=5, description="Startup connectivity check retry attempts.", ge=1
+    )
+    connect_retry_backoff_seconds: float = Field(
+        default=1.0, description="Startup connectivity check base backoff, in seconds.", ge=0.0
+    )
+
+    # --- Phase 9: producer publish retry + DLQ routing ---
+    producer_retry_max_attempts: int = Field(
+        default=5,
+        description="Max publish attempts (including the first) before a message is routed "
+        "to its topic's DLQ counterpart.",
+        ge=1,
+    )
+    producer_retry_backoff_seconds: float = Field(
+        default=0.5, description="Base backoff between publish retry attempts, in seconds.", ge=0.0
+    )
+
+    # --- Phase 9: consumer handler retry + DLQ routing ---
+    consumer_max_retry_attempts: int = Field(
+        default=3,
+        description="Max in-process message-handler retries before a message is routed to "
+        "its topic's DLQ counterpart and the offset is committed.",
+        ge=1,
+    )
+    consumer_retry_backoff_seconds: float = Field(
+        default=0.5,
+        description="Base backoff between consumer handler retry attempts, in seconds.",
+        ge=0.0,
+    )
+
+    # --- Phase 9: topic provisioning defaults, used by shared.messaging.topic_manager ---
+    dlq_topic_suffix: str = Field(
+        default=".dlq",
+        description="Suffix appended to a topic name to derive its dead-letter-queue topic name.",
+    )
+    topic_num_partitions: int = Field(
+        default=6,
+        description="Default partition count for topics this platform provisions via "
+        "TopicManager, when a topic does not specify its own.",
+        ge=1,
+    )
+    topic_replication_factor: int = Field(
+        default=1,
+        description="Default replication factor for topics this platform provisions via "
+        "TopicManager. Use >=3 in a production cluster; 1 matches this repo's single-broker "
+        "docker-compose dev stack.",
+        ge=1,
     )
 
     @field_validator("bootstrap_servers", mode="before")

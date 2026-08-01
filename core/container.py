@@ -32,6 +32,7 @@ from config.settings import Settings, get_settings
 from database.connection import DatabaseConnection
 from shared.enums import ServiceLifecycleState
 from shared.logging.logger import get_logger
+from shared.messaging.kafka_producer import KafkaProducer
 
 _logger = get_logger("core.container")
 
@@ -45,6 +46,7 @@ class Container:
         self._db_connection: DatabaseConnection | None = None
         self._redis_connection: RedisConnection | None = None
         self._cache_manager: CacheManager | None = None
+        self._kafka_producer: KafkaProducer | None = None
 
     @property
     def db(self) -> DatabaseConnection:
@@ -72,6 +74,20 @@ class Container:
             self._cache_manager = CacheManager(self.redis, self.settings)
         return self._cache_manager
 
+    @property
+    def kafka_producer(self) -> KafkaProducer:
+        """The process's single :class:`KafkaProducer`, created on first access.
+
+        Mirrors :attr:`db`/:attr:`redis`'s exact lazy-construction shape.
+        Unlike those two, the underlying ``AIOKafkaProducer`` is not connected
+        yet at this point -- :class:`KafkaProducer` itself lazily starts on
+        first :meth:`~shared.messaging.kafka_producer.KafkaProducer.publish`
+        call (see that class's docstring for why).
+        """
+        if self._kafka_producer is None:
+            self._kafka_producer = KafkaProducer(self.settings)
+        return self._kafka_producer
+
     async def startup(self) -> None:
         """Mark the container ready. Idempotent; safe to call once from ``lifespan``.
 
@@ -92,6 +108,9 @@ class Container:
             await self._redis_connection.dispose()
             self._redis_connection = None
             self._cache_manager = None
+        if self._kafka_producer is not None:
+            await self._kafka_producer.dispose()
+            self._kafka_producer = None
         self.state = ServiceLifecycleState.STOPPED
         _logger.info("container_stopped", extra={"channel": "application"})
 
@@ -145,4 +164,22 @@ def get_cache_manager() -> CacheManager:
     return get_container().cache
 
 
-__all__ = ["Container", "get_cache_manager", "get_container", "get_db_session", "reset_container"]
+def get_kafka_producer() -> KafkaProducer:
+    """FastAPI dependency: return the process's shared :class:`KafkaProducer`.
+
+    Usage: ``producer: KafkaProducer = Depends(get_kafka_producer)``. Returns the
+    wrapper directly rather than a request-scoped resource, for the same reason
+    :func:`get_cache_manager` does -- a concurrency-safe handle onto one shared
+    connection, not something that needs a fresh instance per request.
+    """
+    return get_container().kafka_producer
+
+
+__all__ = [
+    "Container",
+    "get_cache_manager",
+    "get_container",
+    "get_db_session",
+    "get_kafka_producer",
+    "reset_container",
+]
