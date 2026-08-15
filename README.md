@@ -10,6 +10,7 @@ Phase 4 (Configuration Management) — complete; see `docs/PHASE4_CONFIGURATION_
 Phase 5 (Logging System) — complete; see `docs/PHASE5_LOGGING_SYSTEM.md`.
 Phase 6 (Repository Bootstrap) — complete; see `docs/PHASE6_REPOSITORY_BOOTSTRAP.md`.
 Phase 9 (Kafka Infrastructure) — complete; see `docs/PHASE9_KAFKA_INFRASTRUCTURE.md`.
+Phase 10 (Workflow Orchestration) — complete; see `docs/PHASE10_WORKFLOW_ORCHESTRATION.md`.
 
 ## Architecture Summary
 Event-Driven, Domain-Oriented Microservices (EDMA): Hexagonal internals per service, Kafka as the event backbone, CQRS on the market-data/order-state boundary. Full rationale in `docs/PHASE1_ARCHITECTURE.md`.

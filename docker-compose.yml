@@ -35,5 +35,89 @@ services:
     ports:
       - "6379:6379"
 
+  # --- Airflow (Phase 10 -- Workflow Orchestration) -------------------------
+  # Airflow gets its OWN Postgres metadata database (a separate container +
+  # volume, not a second database inside the app's own `postgres` service) --
+  # deliberately, so Airflow's internal schema/migrations are never mixed with
+  # the app's own Alembic-managed one (database/migrations/). See
+  # docs/PHASE10_WORKFLOW_ORCHESTRATION.md Sec 4.
+  #
+  # Every Airflow task runs via DockerOperator against the `scheduler-jobs`
+  # image (built, not run as a standing service -- see its `profiles:` below)
+  # -- Airflow's own container never installs this repo's own dependencies
+  # (requirements/base.txt); see docker/airflow.Dockerfile's comment for why
+  # that combination breaks outright.
+  airflow-postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - airflow_pgdata:/var/lib/postgresql/data
+
+  airflow-init:
+    build:
+      context: .
+      dockerfile: docker/airflow.Dockerfile
+    depends_on: [airflow-postgres]
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-postgres/airflow
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW_VAR_HOST_REPO_PATH: ${PWD}
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        airflow db migrate
+        airflow variables set host_repo_path "${AIRFLOW_VAR_HOST_REPO_PATH}"
+        airflow users create --role Admin --username admin --password admin \
+          --firstname Admin --lastname User --email admin@example.com || true
+
+  airflow-webserver:
+    build:
+      context: .
+      dockerfile: docker/airflow.Dockerfile
+    depends_on: [airflow-init]
+    ports:
+      - "8080:8080"
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-postgres/airflow
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW_VAR_HOST_REPO_PATH: ${PWD}
+    command: webserver
+
+  airflow-scheduler:
+    build:
+      context: .
+      dockerfile: docker/airflow.Dockerfile
+    depends_on: [airflow-init]
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-postgres/airflow
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW_VAR_HOST_REPO_PATH: ${PWD}
+    # Docker-outside-of-Docker: mounting the host's own docker.sock lets this
+    # container ask the HOST's Docker daemon to start each task's container
+    # as a sibling, rather than nesting Docker-in-Docker. See
+    # scheduler/airflow/dag_common.py's module docstring.
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: scheduler
+
+  # Built, not run as a standing service -- `docker compose build scheduler-jobs`
+  # produces the image every Airflow DAG task in this package actually runs
+  # via DockerOperator (see scheduler/airflow/dag_common.py). `profiles:` keeps
+  # `docker compose up` from also starting this as a persistent container.
+  scheduler-jobs:
+    build:
+      context: .
+      dockerfile: docker/scheduler_jobs.Dockerfile
+    image: trading-platform-scheduler-jobs:latest
+    profiles: ["build-only"]
+
 volumes:
   pgdata:
+  airflow_pgdata:
