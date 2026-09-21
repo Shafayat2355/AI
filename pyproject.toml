@@ -8,13 +8,21 @@ requires-python = ">=3.12"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 asyncio_mode = "auto"
+# importlib import mode: test packages under tests/unit/ and tests/integration/
+# share directory names (cache, database, messaging, models, training, ...).
+# Under pytest's default "prepend" mode those same-named directories collide in
+# sys.modules, which breaks collection once two of them contain same-named test
+# modules. importlib mode gives each test module a unique module name derived
+# from its full path, so no __init__.py files or directory renames are needed.
+addopts = "--import-mode=importlib"
 
 [tool.ruff]
 line-length = 100
 src = ["app", "core", "shared", "config", "database", "cache", "market_data",
        "websocket", "feature_engineering", "datasets", "ai", "strategies",
        "risk", "portfolio", "execution", "paper_trading", "live_trading",
-       "backtesting", "scheduler", "monitoring", "alerts", "api", "dashboard"]
+       "backtesting", "scheduler", "monitoring", "alerts", "api", "dashboard",
+       "training", "models", "mlops", "inference"]
 
 [build-system]
 requires = ["setuptools>=68"]

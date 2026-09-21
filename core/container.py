@@ -29,6 +29,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from cache.cache_manager import CacheManager
 from cache.redis_client import RedisConnection
 from config.settings import Settings, get_settings
+from core.ports.feature_store_port import FeatureStorePort
+from core.ports.model_artifact_store_port import ModelArtifactStorePort
 from database.connection import DatabaseConnection
 from shared.enums import ServiceLifecycleState
 from shared.logging.logger import get_logger
@@ -47,6 +49,8 @@ class Container:
         self._redis_connection: RedisConnection | None = None
         self._cache_manager: CacheManager | None = None
         self._kafka_producer: KafkaProducer | None = None
+        self._feature_store: FeatureStorePort | None = None
+        self._artifact_store: ModelArtifactStorePort | None = None
 
     @property
     def db(self) -> DatabaseConnection:
@@ -88,6 +92,40 @@ class Container:
             self._kafka_producer = KafkaProducer(self.settings)
         return self._kafka_producer
 
+    @property
+    def feature_store(self) -> FeatureStorePort:
+        """The process's single Feast-backed :class:`FeatureStorePort`, created
+        on first access (Phase 11).
+
+        Mirrors :attr:`db`/:attr:`redis`/:attr:`kafka_producer`'s exact lazy
+        construction shape. Callers (``training/trainer.py``,
+        ``inference/predictor.py``) depend on the
+        ``core.ports.feature_store_port.FeatureStorePort`` return type, not the
+        concrete Feast client, per that port's own hexagonal-boundary docstring.
+        """
+        if self._feature_store is None:
+            from feature_engineering.feature_store_client import FeastFeatureStoreClient
+
+            self._feature_store = FeastFeatureStoreClient(self.settings)
+        return self._feature_store
+
+    @property
+    def artifact_store(self) -> ModelArtifactStorePort:
+        """The process's single :class:`ModelArtifactStorePort`, created on
+        first access (Phase 12). Unlike ``models.registry_client.PostgresModelRegistry``'s
+        per-session construction pattern (it takes a request-scoped
+        ``AsyncSession``), an artifact store has no request-scoped state to
+        isolate -- it is a thin, stateless wrapper over a filesystem root --
+        so it is cached here like :attr:`feature_store`.
+        """
+        if self._artifact_store is None:
+            from models.artifact_store import LocalFilesystemArtifactStore
+
+            self._artifact_store = LocalFilesystemArtifactStore(
+                self.settings.training.artifact_store_dir
+            )
+        return self._artifact_store
+
     async def startup(self) -> None:
         """Mark the container ready. Idempotent; safe to call once from ``lifespan``.
 
@@ -111,6 +149,8 @@ class Container:
         if self._kafka_producer is not None:
             await self._kafka_producer.dispose()
             self._kafka_producer = None
+        self._feature_store = None
+        self._artifact_store = None
         self.state = ServiceLifecycleState.STOPPED
         _logger.info("container_stopped", extra={"channel": "application"})
 
@@ -175,11 +215,29 @@ def get_kafka_producer() -> KafkaProducer:
     return get_container().kafka_producer
 
 
+def get_feature_store() -> FeatureStorePort:
+    """FastAPI dependency: return the process's shared :class:`FeatureStorePort`.
+
+    Usage: ``feature_store: FeatureStorePort = Depends(get_feature_store)``.
+    """
+    return get_container().feature_store
+
+
+def get_artifact_store() -> ModelArtifactStorePort:
+    """FastAPI dependency: return the process's shared :class:`ModelArtifactStorePort`.
+
+    Usage: ``artifact_store: ModelArtifactStorePort = Depends(get_artifact_store)``.
+    """
+    return get_container().artifact_store
+
+
 __all__ = [
     "Container",
+    "get_artifact_store",
     "get_cache_manager",
     "get_container",
     "get_db_session",
+    "get_feature_store",
     "get_kafka_producer",
     "reset_container",
 ]

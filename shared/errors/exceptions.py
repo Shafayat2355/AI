@@ -183,6 +183,70 @@ class MessagingError(InfrastructureError):
     http_status = 503
 
 
+class FeatureStoreError(InfrastructureError):
+    """A Feast (or its underlying offline/online store) operation failed in a
+    way callers should treat as a feature-store infrastructure problem rather
+    than a domain error (``feature_engineering/feature_store_client.py``,
+    ``offline_pipeline.py``, ``online_pipeline.py``). Raised for registry-apply
+    failures, historical/online retrieval failures, and materialization
+    failures -- never for an ordinary, expected empty result set."""
+
+    error_code = "feature_store_error"
+    http_status = 503
+
+
+class FeatureValidationError(DomainError):
+    """A feature payload/schema failed validation before being used for
+    training or inference (missing feature, type mismatch, training/serving
+    skew) -- see ``feature_engineering/offline_pipeline.py`` and
+    ``inference/predictor.py``. A well-formed request that simply refers to
+    features the store cannot supply, as opposed to a store-level failure
+    (:class:`FeatureStoreError`)."""
+
+    error_code = "feature_validation_error"
+    http_status = 422
+
+
+class ModelRegistryError(InfrastructureError):
+    """A model-registry persistence operation failed (``models/registry_client.py``)
+    -- the underlying PostgreSQL call itself failed, as opposed to a registered
+    but domain-invalid state transition (:class:`ModelStateError`)."""
+
+    error_code = "model_registry_error"
+    http_status = 503
+
+
+class ModelStateError(DomainError):
+    """A model-registry lifecycle operation was requested that the target
+    :class:`~shared.enums.ModelLifecycleState` (once added) does not allow --
+    e.g. promoting a model that has not passed validation, or rolling back
+    when no prior production version exists (``models/registry_client.py``,
+    ``mlops/promotion_policy.py``)."""
+
+    error_code = "model_state_error"
+    http_status = 409
+
+
+class TrainingError(InfrastructureError):
+    """A training run failed for an operational reason (dataset construction,
+    model fitting, artifact persistence) rather than a data-quality reason
+    already covered by :class:`FeatureValidationError`
+    (``training/trainer.py``)."""
+
+    error_code = "training_error"
+    http_status = 500
+
+
+class ModelValidationError(DomainError):
+    """A trained model failed evaluation against its configured promotion
+    thresholds (``training/validation.py``, ``mlops/promotion_policy.py``).
+    Raised to make "candidate did not qualify" an explicit, catchable outcome
+    rather than a silent promotion."""
+
+    error_code = "model_validation_error"
+    http_status = 422
+
+
 __all__ = [
     "AuthenticationError",
     "AuthorizationError",
@@ -190,11 +254,17 @@ __all__ = [
     "ConflictError",
     "DomainError",
     "ExecutionError",
+    "FeatureStoreError",
+    "FeatureValidationError",
     "InfrastructureError",
     "MessagingError",
+    "ModelRegistryError",
+    "ModelStateError",
+    "ModelValidationError",
     "NotFoundError",
     "PlatformError",
     "RateLimitExceededError",
     "RiskBreachError",
+    "TrainingError",
     "ValidationError",
 ]
