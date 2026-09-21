@@ -19,9 +19,12 @@ from shared.messaging.topics import (
 
 
 class TestTopicCatalog:
-    def test_all_eight_requested_categories_are_present(self) -> None:
+    def test_the_eight_original_categories_are_still_present(self) -> None:
+        """The eight categories Phase 9 originally specified must remain --
+        later phases may add topics (Phase 12 added ``model_lifecycle``) but
+        must never drop or rename one of these."""
         logical_names = {t.logical_name for t in ALL_TOPICS}
-        assert logical_names == {
+        assert {
             "market_data",
             "trades",
             "predictions",
@@ -30,7 +33,10 @@ class TestTopicCatalog:
             "portfolio",
             "alerts",
             "logs",
-        }
+        } <= logical_names
+
+    def test_phase12_added_the_model_lifecycle_topic(self) -> None:
+        assert "model_lifecycle" in {t.logical_name for t in ALL_TOPICS}
 
     def test_topic_names_are_unique(self) -> None:
         names = [t.name for t in ALL_TOPICS]

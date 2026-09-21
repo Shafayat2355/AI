@@ -121,6 +121,20 @@ class LogEvent(BaseEvent):
     event_type: ClassVar[str] = "log"
 
 
+class ModelLifecycleEvent(BaseEvent):
+    """A model-registry lifecycle transition (Phase 12): training started/
+    completed/failed, a model registered, promoted, or rolled back. See
+    ``shared.messaging.topics.MODEL_LIFECYCLE``. ``payload`` carries at least
+    ``{"model_name": ..., "transition": ...}`` -- the specific transition
+    (e.g. ``"training_started"``, ``"model_promoted"``) is distinguished by
+    ``payload["transition"]`` rather than a separate event class per
+    transition, since every transition shares the same envelope and a
+    consumer (e.g. a future alerting rule) typically wants to subscribe to
+    all of them at once."""
+
+    event_type: ClassVar[str] = "model_lifecycle"
+
+
 #: event_type string -> concrete class, used by ``event_codec.decode`` to route
 #: a decoded envelope to the right Pydantic model.
 EVENT_TYPE_REGISTRY: dict[str, type[BaseEvent]] = {
@@ -133,6 +147,7 @@ EVENT_TYPE_REGISTRY: dict[str, type[BaseEvent]] = {
         ExecutionEvent,
         PortfolioEvent,
         AlertEvent,
+        ModelLifecycleEvent,
         LogEvent,
     )
 }
@@ -145,6 +160,7 @@ __all__ = [
     "ExecutionEvent",
     "LogEvent",
     "MarketDataEvent",
+    "ModelLifecycleEvent",
     "OrderEvent",
     "PortfolioEvent",
     "PredictionEvent",

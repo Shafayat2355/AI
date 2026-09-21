@@ -29,6 +29,7 @@ from config.modules import (
     PostgreSQLSettings,
     RedisSettings,
     SecuritySettings,
+    TrainingSettings,
     WebSocketSettings,
 )
 
@@ -63,6 +64,7 @@ class Settings(BaseSettings):
     feature_engineering: FeatureEngineeringSettings = Field(
         default_factory=FeatureEngineeringSettings
     )
+    training: TrainingSettings = Field(default_factory=TrainingSettings)
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
     monitoring: MonitoringSettings = Field(default_factory=MonitoringSettings)
     api: APISettings = Field(default_factory=APISettings)

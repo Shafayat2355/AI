@@ -11,6 +11,7 @@ from shared.messaging.events import (
     ExecutionEvent,
     LogEvent,
     MarketDataEvent,
+    ModelLifecycleEvent,
     OrderEvent,
     PortfolioEvent,
     PredictionEvent,
@@ -25,13 +26,18 @@ ALL_EVENT_CLASSES = (
     ExecutionEvent,
     PortfolioEvent,
     AlertEvent,
+    ModelLifecycleEvent,
     LogEvent,
 )
 
 
 class TestEventTypeRegistry:
-    def test_registry_has_all_eight_event_classes(self) -> None:
-        assert len(EVENT_TYPE_REGISTRY) == 8
+    def test_registry_contains_every_declared_event_class(self) -> None:
+        """Kept as a relationship between the registry and the declared class
+        list rather than a hardcoded count, so a later phase adding an event
+        (Phase 12 added ``ModelLifecycleEvent``) does not require editing a
+        magic number -- the invariant that matters is that the two agree."""
+        assert len(EVENT_TYPE_REGISTRY) == len(ALL_EVENT_CLASSES)
         assert set(EVENT_TYPE_REGISTRY.values()) == set(ALL_EVENT_CLASSES)
 
     def test_every_event_type_string_is_unique(self) -> None:

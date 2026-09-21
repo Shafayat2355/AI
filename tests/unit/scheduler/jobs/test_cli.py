@@ -31,13 +31,18 @@ class TestMain:
         assert main(["a", "b"]) == 2
 
     def test_returns_0_for_a_graceful_no_op_job(self) -> None:
-        assert main(["nightly_training_job"]) == 0
+        # periodic_backtest_job's integration point (backtesting.replay_engine)
+        # is still a scaffold stub, so it exercises the graceful-no-op path.
+        # nightly_training_job was used here until Phase 12 implemented
+        # training.trainer -- it now needs a real database and is covered by
+        # tests/integration/training/ instead.
+        assert main(["periodic_backtest_job"]) == 0
 
     def test_returns_1_for_a_dispatch_failure(self) -> None:
         assert main(["this_job_does_not_exist"]) == 1
 
     def test_prints_json_result_to_stdout(self, capsys: pytest.CaptureFixture[str]) -> None:
-        main(["nightly_training_job"])
+        main(["periodic_backtest_job"])
         captured = capsys.readouterr()
-        assert '"job_name": "nightly_training"' in captured.out
+        assert '"job_name": "periodic_backtest"' in captured.out
         assert '"status": "skipped_not_implemented"' in captured.out

@@ -132,6 +132,13 @@ LOGS = Topic(
     has_dlq=False,  # a DLQ for the log stream itself would be circular
 )
 
+MODEL_LIFECYCLE = Topic(
+    logical_name="model_lifecycle",
+    name="mlops.model_lifecycle",
+    key_description="model_name -- guarantees ordering of one model's lifecycle transitions",
+    retention_ms=_LONG_RETENTION_MS,
+)
+
 #: Every topic this platform's TopicManager provisions, in one place so
 #: ``TopicManager.ensure_all()`` and tests never have to enumerate them by hand.
 ALL_TOPICS: tuple[Topic, ...] = (
@@ -143,6 +150,7 @@ ALL_TOPICS: tuple[Topic, ...] = (
     PORTFOLIO,
     ALERTS,
     LOGS,
+    MODEL_LIFECYCLE,
 )
 
 _BY_LOGICAL_NAME: dict[str, Topic] = {topic.logical_name: topic for topic in ALL_TOPICS}
@@ -168,6 +176,7 @@ __all__ = [
     "EXECUTIONS",
     "LOGS",
     "MARKET_DATA",
+    "MODEL_LIFECYCLE",
     "ORDERS",
     "PORTFOLIO",
     "PREDICTIONS",
