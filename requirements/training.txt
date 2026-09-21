@@ -3,5 +3,7 @@ torch
 scikit-learn
 pandas
 numpy
+pyarrow
+feast
 mlflow
 optuna

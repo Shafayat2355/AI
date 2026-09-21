@@ -47,9 +47,23 @@ class TestAlembicUpgrade:
         assert result.returncode == 0, result.stderr
         assert db_path.exists()
 
-    def test_current_reports_the_initial_baseline_revision(self, db_path: Path) -> None:
+    def test_current_reports_a_head_revision_after_upgrading(self, db_path: Path) -> None:
+        """``current`` reports whichever revision is head, which changes every
+        time a phase adds a migration -- so this asserts the invariant (an
+        upgrade leaves the database at a revision marked ``head``) rather than
+        pinning the specific id, which would need editing each phase."""
         _run_alembic("upgrade", "head", db_path=db_path)
         result = _run_alembic("current", db_path=db_path)
+        assert result.returncode == 0, result.stderr
+        assert "(head)" in result.stdout
+
+    def test_the_initial_baseline_revision_is_in_the_applied_history(
+        self, db_path: Path
+    ) -> None:
+        """The Phase 7 baseline must remain the root of the chain -- later
+        phases extend it, never replace it."""
+        _run_alembic("upgrade", "head", db_path=db_path)
+        result = _run_alembic("history", db_path=db_path)
         assert result.returncode == 0, result.stderr
         assert "130f3304b3d4" in result.stdout
 

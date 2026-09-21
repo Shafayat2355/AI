@@ -47,6 +47,18 @@ class FeatureEngineeringSettings(ModuleBaseSettings):
         default=True,
         description="Whether feature_store_client.py serves online (low-latency) reads.",
     )
+    feast_project_name: str = Field(
+        default="ai_trading_platform",
+        description=(
+            "Feast project name, isolating this platform's registry/online-store "
+            "keys from any other Feast project sharing the same Redis instance."
+        ),
+    )
+    historical_retrieval_timeout_seconds: float = Field(
+        default=120.0,
+        description="Timeout for a single get_historical_features() call.",
+        gt=0,
+    )
 
 
 __all__ = ["FeatureEngineeringSettings"]

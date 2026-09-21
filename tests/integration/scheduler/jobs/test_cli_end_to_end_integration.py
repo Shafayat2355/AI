@@ -53,7 +53,11 @@ class TestGracefulNoOpJobEndToEnd:
     def test_exits_zero_for_a_not_yet_implemented_job(
         self, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        exit_code = main(["historical_sync_job"])
+        # eod_reconciliation_job's integration point (portfolio.portfolio_manager)
+        # is still a scaffold stub. historical_sync_job was used here until
+        # Phase 11 implemented datasets.historical.ohlcv_store -- it now needs a
+        # real database and is covered by tests/integration/training/ instead.
+        exit_code = main(["eod_reconciliation_job"])
 
         assert exit_code == 0
         # main() also runs configure_logging(), whose console handler shares
