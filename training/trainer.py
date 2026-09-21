@@ -24,7 +24,13 @@ import pandas as pd
 import sklearn
 
 from config.settings import Settings
-from core.domain.entities.model_version import EvaluationMetrics, ModelVersion, TrainingConfig
+from core.domain.entities.model_version import (
+    EvaluationMetrics,
+    ModelLifecycleState,
+    ModelVersion,
+    TrainingConfig,
+    TrainingRun,
+)
 from core.domain.entities.tick import OHLCVBar
 from core.ports.feature_store_port import FeatureStorePort
 from core.ports.model_artifact_store_port import ModelArtifactStorePort
@@ -156,13 +162,6 @@ class ModelTrainer:
             model, split.test_features, split.test_labels, split="test"
         )
 
-        # Reserve the version number first so the artifact is written once, at
-        # its final path -- registering a placeholder URI and re-saving would
-        # leave the registry pointing at a stale path if anything failed
-        # between the two writes.
-        version = await self._model_registry.reserve_version(model_name)
-        artifact_uri = self._artifact_store.save(model_name, version, model.serialize())
-
         config = TrainingConfig(
             random_seed=training_settings.random_seed,
             feature_refs=dataset.feature_refs,
@@ -183,20 +182,42 @@ class ModelTrainer:
                 "pandas": pd.__version__,
             },
         )
-
-        model_version = await self._model_registry.register_version(
-            model_name=model_name,
-            version=version,
-            artifact_uri=artifact_uri,
-            training_run_id=training_run_id,
-            feature_refs=dataset.feature_refs,
-            config=config,
+        await self._model_registry.create_training_run(
+            TrainingRun(
+                id=training_run_id,
+                model_name=model_name,
+                config=config,
+                started_at=started_at,
+                status=ModelLifecycleState.CREATED,
+            )
         )
 
-        model_version = await self._model_registry.record_evaluation(
-            model_version.id, validation_metrics
-        )
-        model_version = await self._model_registry.record_evaluation(model_version.id, test_metrics)
+        try:
+            # Reserve the version number atomically before writing the artifact
+            # at its final path.
+            version = await self._model_registry.reserve_version(model_name)
+            artifact_uri = self._artifact_store.save(model_name, version, model.serialize())
+            model_version = await self._model_registry.register_version(
+                model_name=model_name,
+                version=version,
+                artifact_uri=artifact_uri,
+                training_run_id=training_run_id,
+                feature_refs=dataset.feature_refs,
+                config=config,
+            )
+            model_version = await self._model_registry.record_evaluation(
+                model_version.id, validation_metrics
+            )
+            model_version = await self._model_registry.record_evaluation(
+                model_version.id, test_metrics
+            )
+            await self._model_registry.complete_training_run(training_run_id, model_version.id)
+        except Exception as exc:
+            try:
+                await self._model_registry.fail_training_run(training_run_id, str(exc))
+            except Exception:
+                _logger.exception("training_run_failure_not_recorded")
+            raise
 
         promotable = meets_promotion_criteria(test_metrics, training_settings)
 

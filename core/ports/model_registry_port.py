@@ -18,12 +18,25 @@ from core.domain.entities.model_version import (
     ModelLifecycleState,
     ModelVersion,
     TrainingConfig,
+    TrainingRun,
 )
 
 
 class ModelRegistryPort(ABC):
     """Contract a model-registry adapter must satisfy: register/version/
     query/promote/rollback/archive, backed by persistent metadata storage."""
+
+    @abstractmethod
+    async def create_training_run(self, run: TrainingRun) -> TrainingRun:
+        """Persist a run before registering a version that references it."""
+
+    @abstractmethod
+    async def complete_training_run(self, run_id: UUID, model_version_id: UUID) -> TrainingRun:
+        """Mark a persisted run successful and link its registered version."""
+
+    @abstractmethod
+    async def fail_training_run(self, run_id: UUID, error_message: str) -> TrainingRun:
+        """Mark a persisted run failed without masking its original error."""
 
     @abstractmethod
     async def reserve_version(self, model_name: str) -> int:

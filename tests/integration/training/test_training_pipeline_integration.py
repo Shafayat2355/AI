@@ -39,7 +39,7 @@ from inference.model_loader import ModelLoader
 from inference.predictor import Predictor
 from mlops.promotion_policy import PromotionPolicy
 from models.artifact_store import LocalFilesystemArtifactStore
-from models.registry_client import PostgresModelRegistry
+from models.registry_client import PostgresModelRegistry, TrainingRunModel
 from training.trainer import ModelTrainer
 
 _ANCHOR = datetime(2026, 1, 1, tzinfo=UTC)
@@ -151,6 +151,15 @@ class TestTrainingRun:
     async def test_records_the_feature_refs_used(self, trainer, bars) -> None:  # noqa: ANN001
         result = await _train(trainer, bars)
         assert len(result.model_version.feature_refs) > 0
+
+    async def test_persists_and_links_the_training_run(
+        self, trainer, bars, session: AsyncSession
+    ) -> None:  # noqa: ANN001
+        result = await _train(trainer, bars)
+        run = await session.get(TrainingRunModel, result.training_run_id)
+        assert run is not None
+        assert run.model_version_id == result.model_version.id
+        assert run.status == ModelLifecycleState.TRAINED.value
 
     async def test_successive_runs_increment_the_version(self, trainer, bars) -> None:  # noqa: ANN001
         assert (await _train(trainer, bars)).model_version.version == 1

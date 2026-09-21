@@ -91,7 +91,7 @@ class TestBuildLabels:
         timestamp of the bar the features are known at, not the labelled one."""
         bars = [_bar(i, 100 + i) for i in range(5)]
         labels = build_labels(bars, horizon=1)
-        assert labels["event_timestamp"].tolist() == [b.open_time for b in bars[:-1]]
+        assert labels["event_timestamp"].tolist() == [b.close_time for b in bars[:-1]]
 
     def test_drops_the_trailing_rows_that_have_no_future_bar(self) -> None:
         bars = [_bar(i, 100 + i) for i in range(10)]

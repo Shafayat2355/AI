@@ -16,7 +16,7 @@ persistence model to and from it rather than the reverse.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from enum import StrEnum
 
@@ -89,6 +89,25 @@ class OHLCVBar:
     def is_bullish(self) -> bool:
         """Whether this bar closed above where it opened."""
         return self.close > self.open
+
+    @property
+    def close_time(self) -> datetime:
+        """The first instant at which this bar's OHLCV values are known.
+
+        A bar's ``open_time`` cannot be used as a feature timestamp because
+        its high, low, close, and volume are only final at the close.  Keeping
+        this calculation on the domain value prevents feature and label
+        pipelines from quietly reintroducing lookahead bias.
+        """
+        durations = {
+            BarInterval.ONE_MINUTE: timedelta(minutes=1),
+            BarInterval.FIVE_MINUTE: timedelta(minutes=5),
+            BarInterval.FIFTEEN_MINUTE: timedelta(minutes=15),
+            BarInterval.ONE_HOUR: timedelta(hours=1),
+            BarInterval.FOUR_HOUR: timedelta(hours=4),
+            BarInterval.ONE_DAY: timedelta(days=1),
+        }
+        return self.open_time + durations[self.interval]
 
 
 __all__ = ["BarInterval", "OHLCVBar"]

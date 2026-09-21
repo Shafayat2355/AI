@@ -56,7 +56,9 @@ def build_labels(bars: list[OHLCVBar], *, horizon: int = 1) -> pd.DataFrame:
         rows.append(
             {
                 "symbol": symbol,
-                "event_timestamp": current.open_time,
+                # Features calculated from ``current`` are available only
+                # once its OHLCV candle closes, never at its open time.
+                "event_timestamp": current.close_time,
                 "label": int(future.close > current.close),
             }
         )

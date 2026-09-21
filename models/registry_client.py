@@ -23,6 +23,7 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
     select,
+    text,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
@@ -164,6 +165,20 @@ class ModelEvaluationModel(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         )
 
 
+class ModelVersionCounterModel(Base):
+    """One atomic, per-model version counter.
+
+    ``model_versions`` itself cannot safely be queried and incremented by
+    concurrent training transactions.  This row is updated atomically by
+    :meth:`PostgresModelRegistry.reserve_version` instead.
+    """
+
+    __tablename__ = "model_version_counters"
+
+    model_name: Mapped[str] = mapped_column(String(128), primary_key=True)
+    next_version: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
 class PostgresModelRegistry(ModelRegistryPort):
     """PostgreSQL-backed :class:`~core.ports.model_registry_port.ModelRegistryPort`."""
 
@@ -187,18 +202,88 @@ class PostgresModelRegistry(ModelRegistryPort):
         validation, test = await self._latest_metrics(row.id)
         return row.to_entity(validation_metrics=validation, test_metrics=test)
 
+    async def create_training_run(self, run: TrainingRun) -> TrainingRun:
+        row = TrainingRunModel(
+            id=run.id,
+            model_name=run.model_name,
+            status=ModelLifecycleState.CREATED.value,
+            random_seed=run.config.random_seed,
+            feature_refs=list(run.config.feature_refs),
+            dataset_start=run.config.dataset_start,
+            dataset_end=run.config.dataset_end,
+            train_split=run.config.train_split,
+            validation_split=run.config.validation_split,
+            test_split=run.config.test_split,
+            hyperparameters=run.config.hyperparameters,
+            library_versions=run.config.library_versions,
+            started_at=run.started_at,
+        )
+        self._session.add(row)
+        try:
+            await self._session.flush()
+        except Exception as exc:
+            raise ModelRegistryError(f"failed to create training run: {exc}") from exc
+        return row.to_entity(run.config)
+
+    async def complete_training_run(self, run_id: uuid.UUID, model_version_id: uuid.UUID) -> TrainingRun:
+        row = await self._session.get(TrainingRunModel, run_id)
+        if row is None:
+            raise ModelRegistryError(f"training run not found: {run_id}")
+        row.status = ModelLifecycleState.TRAINED.value
+        row.model_version_id = model_version_id
+        row.completed_at = datetime.now(UTC)
+        await self._session.flush()
+        return row.to_entity(
+            TrainingConfig(
+                random_seed=row.random_seed,
+                feature_refs=tuple(row.feature_refs),
+                dataset_start=row.dataset_start,
+                dataset_end=row.dataset_end,
+                train_split=row.train_split,
+                validation_split=row.validation_split,
+                test_split=row.test_split,
+                hyperparameters=dict(row.hyperparameters),
+                library_versions=dict(row.library_versions),
+            )
+        )
+
+    async def fail_training_run(self, run_id: uuid.UUID, error_message: str) -> TrainingRun:
+        row = await self._session.get(TrainingRunModel, run_id)
+        if row is None:
+            raise ModelRegistryError(f"training run not found: {run_id}")
+        row.status = ModelLifecycleState.FAILED.value
+        row.error_message = error_message[:2000]
+        row.completed_at = datetime.now(UTC)
+        await self._session.flush()
+        return row.to_entity(
+            TrainingConfig(
+                random_seed=row.random_seed,
+                feature_refs=tuple(row.feature_refs),
+                dataset_start=row.dataset_start,
+                dataset_end=row.dataset_end,
+                train_split=row.train_split,
+                validation_split=row.validation_split,
+                test_split=row.test_split,
+                hyperparameters=dict(row.hyperparameters),
+                library_versions=dict(row.library_versions),
+            )
+        )
+
     async def reserve_version(self, model_name: str) -> int:
         try:
             result = await self._session.execute(
-                select(ModelVersionModel.version)
-                .where(ModelVersionModel.model_name == model_name)
-                .order_by(ModelVersionModel.version.desc())
-                .limit(1)
+                text(
+                    "INSERT INTO model_version_counters (model_name, next_version) "
+                    "VALUES (:model_name, 2) "
+                    "ON CONFLICT (model_name) DO UPDATE "
+                    "SET next_version = model_version_counters.next_version + 1 "
+                    "RETURNING next_version - 1"
+                ),
+                {"model_name": model_name},
             )
-            last_version = result.scalar_one_or_none()
+            return int(result.scalar_one())
         except Exception as exc:
             raise ModelRegistryError(f"failed to reserve model version: {exc}") from exc
-        return (last_version or 0) + 1
 
     async def register_version(
         self,
@@ -388,6 +473,7 @@ class PostgresModelRegistry(ModelRegistryPort):
 __all__ = [
     "ModelEvaluationModel",
     "ModelVersionModel",
+    "ModelVersionCounterModel",
     "PostgresModelRegistry",
     "TrainingRunModel",
 ]

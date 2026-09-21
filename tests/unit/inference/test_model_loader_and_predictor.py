@@ -22,6 +22,7 @@ from core.domain.entities.model_version import (
     ModelLifecycleState,
     ModelVersion,
     TrainingConfig,
+    TrainingRun,
 )
 from core.ports.event_publisher_port import EventPublisherPort
 from core.ports.feature_store_port import FeatureStorePort
@@ -73,6 +74,15 @@ class _InMemoryRegistry(ModelRegistryPort):
     def add(self, version: ModelVersion) -> ModelVersion:
         self.versions[version.id] = version
         return version
+
+    async def create_training_run(self, run: TrainingRun) -> TrainingRun:
+        return run
+
+    async def complete_training_run(self, run_id: UUID, model_version_id: UUID) -> TrainingRun:
+        raise NotImplementedError
+
+    async def fail_training_run(self, run_id: UUID, error_message: str) -> TrainingRun:
+        raise NotImplementedError
 
     async def reserve_version(self, model_name: str) -> int:
         existing = [v.version for v in self.versions.values() if v.model_name == model_name]

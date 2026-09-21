@@ -100,7 +100,10 @@ def compute_features_for_symbol(symbol: str, bars: list[OHLCVBar]) -> pd.DataFra
             context={"missing_columns": missing},
         )
 
-    features.insert(0, "event_timestamp", frame["open_time"])
+    # Indicators use this bar's final OHLCV values, so timestamp them at the
+    # close rather than the open.  This makes Feast's point-in-time joins
+    # unable to expose future-in-the-bar information during training.
+    features.insert(0, "event_timestamp", [bar.close_time for bar in bars])
     features.insert(0, "symbol", symbol)
     return features
 
