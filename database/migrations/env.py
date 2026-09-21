@@ -29,11 +29,17 @@ from database.base import Base
 from database.connection import create_engine_from_settings
 
 # Import mapped models here so Base.metadata is populated for autogenerate --
-# none exist yet as of Phase 7 (see docs/PHASE7_DATABASE_LAYER.md "Initial
+# none existed as of Phase 7 (see docs/PHASE7_DATABASE_LAYER.md "Initial
 # migration"). A later phase adding e.g. `database.repositories.order_repository`'s
 # concrete `OrderModel` adds an import of it here (silencing the resulting
 # unused-import lint finding, since the import's only purpose is its side
 # effect of registering the table on Base.metadata).
+from database.repositories.ohlcv_bar_repository import OHLCVBarModel  # noqa: F401,E402  Phase 11
+from models.registry_client import (  # noqa: F401,E402  Phase 12
+    ModelEvaluationModel,
+    ModelVersionModel,
+    TrainingRunModel,
+)
 
 config = context.config
 

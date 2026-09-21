@@ -18,6 +18,7 @@ from config.modules.monitoring import MonitoringSettings
 from config.modules.postgresql import PostgreSQLSettings
 from config.modules.redis import RedisSettings
 from config.modules.security import SecuritySettings
+from config.modules.training import TrainingSettings
 from config.modules.websocket import WebSocketSettings
 
 __all__ = [
@@ -33,5 +34,6 @@ __all__ = [
     "PostgreSQLSettings",
     "RedisSettings",
     "SecuritySettings",
+    "TrainingSettings",
     "WebSocketSettings",
 ]
